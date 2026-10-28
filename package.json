@@ -1,0 +1,44 @@
+{
+  "name": "esol-feedback",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ESOL Premier Campus - public feedback forms, form builder and admin evaluation dashboard",
+  "scripts": {
+    "dev": "vite",
+    "dev:api": "node --watch server/index.js",
+    "dev:all": "concurrently -k -n web,api -c cyan,magenta \"npm:dev\" \"npm:dev:api\"",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "start": "node server/index.js",
+    "db:setup": "node server/scripts/setup-db.js",
+    "db:seed": "node server/scripts/setup-db.js --seed"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "pg": "^8.23.1",
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
+    "cookie-parser": "^1.4.7",
+    "multer": "^2.5.0",
+    "dotenv": "^18.0.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.9.5",
+    "lucide-react": "^1.63.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "^5.9.3",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "tailwindcss": "^3.4.17",
+    "postcss": "^8.5.32",
+    "autoprefixer": "^10.6.2",
+    "concurrently": "^10.0.6"
+  }
+}

@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { -webkit-text-size-adjust: 100%; }
+body { @apply bg-white font-sans text-slate-900 antialiased; }
+
+.form-theme {
+  --accent-soft: color-mix(in srgb, var(--accent) 9%, white);
+  --accent-ring: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+@layer components {
+/* Admin area: dark theme matching the evaluation dashboard mock */
+.admin {
+  --bg: #0d0d10;
+  --panel: #17171b;
+  --panel-2: #1f1f25;
+  --line: #2a2a31;
+  --muted: #9a9aa6;
+  --text: #ececf1;
+  --good: #2f80ed;
+  --mid: #f2b01e;
+  --bad: #ef4444;
+  background: var(--bg);
+  color: var(--text);
+  color-scheme: dark;
+}
+:where(.admin) .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 0.875rem; }
+:where(.admin) .muted { color: var(--muted); }
+:where(.admin) .a-input {
+  @apply w-full rounded-lg px-3 py-2 text-sm outline-none transition;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+}
+:where(.admin) .a-input:focus { border-color: #4f5bd5; box-shadow: 0 0 0 3px rgb(79 91 213 / 0.3); }
+:where(.admin) .a-btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition disabled:opacity-50;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+}
+:where(.admin) .a-btn:hover { background: #292931; }
+:where(.admin) .a-btn-primary {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#3b49df] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#4a57ea] disabled:opacity-50;
+}
+:where(.admin) .a-btn-danger {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-rose-300 transition hover:bg-rose-500/10;
+  border: 1px solid rgb(244 63 94 / 0.35);
+}
+:where(.admin) select.a-input option { background: #1f1f25; }
+}
