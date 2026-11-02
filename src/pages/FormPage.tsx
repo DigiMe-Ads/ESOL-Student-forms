@@ -5,7 +5,7 @@ import { api, ApiError } from "../lib/api";
 import type { Answers, Form } from "../lib/types";
 import { validateFields } from "../lib/validate";
 import { FieldInput } from "../components/FieldInput";
-import { Logo } from "../components/Brand";
+import { LogoMark } from "../components/Brand";
 
 export default function FormPage() {
   const { slug = "" } = useParams();
@@ -122,7 +122,7 @@ export default function FormPage() {
         )}
         <div className="mx-auto max-w-2xl px-5">
           <div className="relative z-10 -mt-11 grid h-[88px] w-[88px] place-items-center overflow-hidden rounded-full border-4 border-white bg-white shadow-md">
-            <Logo className="h-auto w-[72px]" />
+            <LogoMark className="h-16 w-16" />
           </div>
         </div>
       </div>
