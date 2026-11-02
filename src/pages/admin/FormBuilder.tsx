@@ -15,7 +15,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "../../lib/api";
-import type { Field, FieldType, Form, FormStatus, Section } from "../../lib/types";
+import { canEditForm, type Field, type FieldType, type Form, type FormStatus, type Section } from "../../lib/types";
+import { useAdmin } from "./AdminLayout";
 import { FIELD_TYPES, newField, newId, typeMeta } from "../../lib/fieldTypes";
 import FieldEditor, { Labeled, Toggle } from "../../components/admin/FieldEditor";
 import { FieldInput } from "../../components/FieldInput";
@@ -25,6 +26,7 @@ type Loc = { s: number; f: number };
 
 export default function FormBuilder() {
   const { id } = useParams();
+  const user = useAdmin();
   const [form, setForm] = useState<Form | null>(null);
   const [saved, setSaved] = useState<string>("");
   const [error, setError] = useState("");
@@ -116,6 +118,18 @@ export default function FormBuilder() {
 
   if (!form) {
     return <div className="grid place-items-center py-24">{error ? <p className="text-rose-400">{error}</p> : <Loader2 className="h-6 w-6 animate-spin text-slate-500" />}</div>;
+  }
+
+  if (!canEditForm(user, form)) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-20 text-center">
+        <h1 className="font-display text-xl font-semibold text-white">You can't edit this form</h1>
+        <p className="muted mt-2 text-sm">{user.role === "academic" ? "Academics can only edit forms they created. Duplicate it to make your own copy." : "Your role can view responses but not change forms."}</p>
+        <Link to={`/admin/forms/${form.id}/responses`} className="a-btn mt-5">
+          <BarChart3 className="h-4 w-4" /> View responses
+        </Link>
+      </main>
+    );
   }
 
   const sections = form.schema.sections;

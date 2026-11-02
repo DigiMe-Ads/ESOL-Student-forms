@@ -2,12 +2,26 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import { query } from "../db.js";
-import { clearSession, requireAdmin, setSession } from "../auth.js";
+import { clearSession, requireAdmin, requireRole, setSession } from "../auth.js";
 import { allFields } from "../validate.js";
 import { UPLOAD_LIMIT_MB } from "./public.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: Math.min(8, UPLOAD_LIMIT_MB) * 1024 * 1024 } });
+
+const ROLES = ["admin", "academic", "management"];
+const canWriteForms = requireRole("admin", "academic");
+const adminOnly = requireRole("admin");
+
+// Academics may only change forms they created themselves.
+async function canEditForm(req, res, next) {
+  if (req.admin.role === "admin") return next();
+  if (req.admin.role === "academic") {
+    const { rows } = await query(`select 1 from forms where id = $1 and created_by = $2`, [req.params.id, req.admin.id]);
+    if (rows.length) return next();
+  }
+  res.status(403).json({ error: "You don't have permission to edit this form" });
+}
 
 const failed = new Map();
 router.post("/login", async (req, res) => {
@@ -18,7 +32,7 @@ router.post("/login", async (req, res) => {
   if (f && f.count >= 8 && Date.now() - f.at < 10 * 60_000) {
     return res.status(429).json({ error: "Too many attempts. Try again in 10 minutes." });
   }
-  const { rows } = await query(`select id, email, name, password_hash from admins where email = $1`, [email]);
+  const { rows } = await query(`select id, email, name, role, password_hash from admins where email = $1`, [email]);
   const admin = rows[0];
   if (!admin || !(await bcrypt.compare(password, admin.password_hash))) {
     failed.set(key, { count: (f?.count || 0) + 1, at: Date.now() });
@@ -26,7 +40,7 @@ router.post("/login", async (req, res) => {
   }
   failed.delete(key);
   setSession(res, admin);
-  res.json({ id: admin.id, email: admin.email, name: admin.name });
+  res.json({ id: admin.id, email: admin.email, name: admin.name, role: admin.role });
 });
 
 router.post("/logout", (_req, res) => {
@@ -36,20 +50,16 @@ router.post("/logout", (_req, res) => {
 
 router.use(requireAdmin);
 
-router.get("/me", async (req, res) => {
-  const { rows } = await query(`select id, email, name from admins where id = $1`, [req.admin.sub]);
-  if (!rows[0]) {
-    clearSession(res);
-    return res.status(401).json({ error: "Not signed in" });
-  }
-  res.json(rows[0]);
+router.get("/me", (req, res) => {
+  const { id, email, name, role } = req.admin;
+  res.json({ id, email, name, role });
 });
 
 // ---------- Forms ----------
 
 router.get("/forms", async (_req, res) => {
   const { rows } = await query(`
-    select f.id, f.slug, f.title, f.description, f.category, f.status, f.settings, f.schema, f.sort_order,
+    select f.id, f.slug, f.title, f.description, f.category, f.status, f.settings, f.schema, f.sort_order, f.created_by,
            f.created_at, f.updated_at,
            count(r.id)::int as response_count, max(r.created_at) as last_response_at
       from forms f left join responses r on r.form_id = f.id
@@ -69,7 +79,7 @@ async function uniqueSlug(base, exceptId = null) {
   }
 }
 
-router.post("/forms", async (req, res) => {
+router.post("/forms", canWriteForms, async (req, res) => {
   const { duplicateOf, title } = req.body || {};
   let base = {
     title: title || "Untitled form",
@@ -89,9 +99,9 @@ router.post("/forms", async (req, res) => {
   }
   const slug = await uniqueSlug(base.title);
   const { rows } = await query(
-    `insert into forms (slug, title, description, category, status, settings, schema, sort_order)
-     values ($1, $2, $3, $4, 'draft', $5, $6, coalesce((select max(sort_order) + 1 from forms), 0)) returning *`,
-    [slug, base.title, base.description, base.category, base.settings, base.schema],
+    `insert into forms (slug, title, description, category, status, settings, schema, sort_order, created_by)
+     values ($1, $2, $3, $4, 'draft', $5, $6, coalesce((select max(sort_order) + 1 from forms), 0), $7) returning *`,
+    [slug, base.title, base.description, base.category, base.settings, base.schema, req.admin.id],
   );
   res.status(201).json(rows[0]);
 });
@@ -102,7 +112,7 @@ router.get("/forms/:id", async (req, res) => {
   res.json(rows[0]);
 });
 
-router.put("/forms/:id", async (req, res) => {
+router.put("/forms/:id", canEditForm, async (req, res) => {
   const { title, description, category, status, settings, schema, slug, sort_order } = req.body || {};
   if (status && !["draft", "published", "closed"].includes(status)) return res.status(400).json({ error: "Invalid status" });
   if (schema && !Array.isArray(schema.sections)) return res.status(400).json({ error: "Invalid form structure" });
@@ -123,7 +133,7 @@ router.put("/forms/:id", async (req, res) => {
   res.json(rows[0]);
 });
 
-router.delete("/forms/:id", async (req, res) => {
+router.delete("/forms/:id", adminOnly, async (req, res) => {
   const { rowCount } = await query(`delete from forms where id = $1`, [req.params.id]);
   if (!rowCount) return res.status(404).json({ error: "Form not found" });
   res.json({ ok: true });
@@ -141,12 +151,12 @@ router.get("/responses", async (req, res) => {
   res.json(rows);
 });
 
-router.delete("/responses/:id", async (req, res) => {
+router.delete("/responses/:id", adminOnly, async (req, res) => {
   await query(`delete from responses where id = $1`, [req.params.id]);
   res.json({ ok: true });
 });
 
-router.delete("/forms/:id/responses", async (req, res) => {
+router.delete("/forms/:id/responses", adminOnly, async (req, res) => {
   const { rowCount } = await query(`delete from responses where form_id = $1`, [req.params.id]);
   res.json({ ok: true, deleted: rowCount });
 });
@@ -189,7 +199,7 @@ router.get("/files/:id", async (req, res) => {
 });
 
 // Cover / header images for forms.
-router.post("/images", upload.single("file"), async (req, res) => {
+router.post("/images", canWriteForms, upload.single("file"), async (req, res) => {
   const file = req.file;
   if (!file || !file.mimetype.startsWith("image/")) return res.status(400).json({ error: "Please choose an image" });
   const { rows } = await query(
@@ -199,28 +209,50 @@ router.post("/images", upload.single("file"), async (req, res) => {
   res.json({ url: `/api/files/${rows[0].id}` });
 });
 
-// ---------- Admin accounts ----------
+// ---------- User accounts ----------
 
-router.get("/admins", async (_req, res) => {
-  const { rows } = await query(`select id, email, name, created_at from admins order by created_at`);
+router.get("/admins", adminOnly, async (_req, res) => {
+  const { rows } = await query(`select id, email, name, role, created_at from admins order by created_at`);
   res.json(rows);
 });
 
-router.post("/admins", async (req, res) => {
+router.post("/admins", adminOnly, async (req, res) => {
   const email = String(req.body?.email || "").trim().toLowerCase();
   const password = String(req.body?.password || "");
+  const role = req.body?.role;
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a valid email" });
   if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+  if (!ROLES.includes(role)) return res.status(400).json({ error: "Choose a role" });
   const { rows } = await query(
-    `insert into admins (email, name, password_hash) values ($1, $2, $3) on conflict (email) do nothing returning id, email, name, created_at`,
-    [email, String(req.body?.name || ""), await bcrypt.hash(password, 10)],
+    `insert into admins (email, name, password_hash, role) values ($1, $2, $3, $4) on conflict (email) do nothing
+     returning id, email, name, role, created_at`,
+    [email, String(req.body?.name || ""), await bcrypt.hash(password, 10), role],
   );
-  if (!rows[0]) return res.status(409).json({ error: "An admin with that email already exists" });
+  if (!rows[0]) return res.status(409).json({ error: "A user with that email already exists" });
   res.status(201).json(rows[0]);
 });
 
-router.delete("/admins/:id", async (req, res) => {
-  if (req.params.id === req.admin.sub) return res.status(400).json({ error: "You cannot remove your own account" });
+router.put("/admins/:id", adminOnly, async (req, res) => {
+  const { role, password } = req.body || {};
+  if (role !== undefined) {
+    if (!ROLES.includes(role)) return res.status(400).json({ error: "Choose a role" });
+    // Admins can't demote themselves, so there is always at least one admin left.
+    if (req.params.id === req.admin.id) return res.status(400).json({ error: "You cannot change your own role" });
+  }
+  if (password !== undefined && String(password).length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
+  }
+  const { rows } = await query(
+    `update admins set role = coalesce($2, role), password_hash = coalesce($3, password_hash) where id = $1
+     returning id, email, name, role, created_at`,
+    [req.params.id, role ?? null, password !== undefined ? await bcrypt.hash(String(password), 10) : null],
+  );
+  if (!rows[0]) return res.status(404).json({ error: "User not found" });
+  res.json(rows[0]);
+});
+
+router.delete("/admins/:id", adminOnly, async (req, res) => {
+  if (req.params.id === req.admin.id) return res.status(400).json({ error: "You cannot remove your own account" });
   await query(`delete from admins where id = $1`, [req.params.id]);
   res.json({ ok: true });
 });

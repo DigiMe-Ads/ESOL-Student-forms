@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { query } from "../db.js";
-import { readSession } from "../auth.js";
+import { loadUser } from "../auth.js";
 import { allFields, validateAnswers } from "../validate.js";
 
 const router = Router();
@@ -67,7 +67,7 @@ async function loadForm(req) {
   const form = rows[0];
   if (!form) return null;
   // Admins can open drafts/closed forms to preview them.
-  if (form.status !== "published" && !readSession(req)) return null;
+  if (form.status !== "published" && !(await loadUser(req))) return null;
   return form;
 }
 

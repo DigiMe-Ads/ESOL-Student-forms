@@ -8,7 +8,19 @@ Public feedback forms for students, plus an admin area with an evaluation dashbo
 - `/admin/forms` lists forms and handles CRUD: create, edit, duplicate, publish/draft/close, delete
 - `/admin/forms/:id/edit` is the builder: sections, 15 question types (text, paragraph, email, phone, number, multiple choice, checkboxes, dropdown, linear scale, star rating, grid, date, time, file upload, text block), an "Other" option, required, reordering, a live preview, covers and colours, and one-section-per-page mode
 - `/admin/forms/:id/responses` gives a per-question summary, single responses, file downloads and CSV export
-- `/admin/settings` manages admin accounts and passwords
+- `/admin/settings` is where Admins manage users and roles, and where everyone changes their own password
+
+## Roles
+
+| | Admin | Academic | Management |
+| --- | --- | --- | --- |
+| View dashboard, responses, files, CSV export | Yes | Yes | Yes |
+| Create and duplicate forms | Yes | Yes | No |
+| Edit, publish and close forms | All forms | Only forms they created | No |
+| Delete forms and responses | Yes | No | No |
+| Add, change and remove users | Yes | No | No |
+
+Permissions are enforced by the API and checked against the database on every request, so a role change or removal takes effect immediately. An Admin can't change their own role or remove themselves, so there is always at least one Admin.
 
 ## Stack
 

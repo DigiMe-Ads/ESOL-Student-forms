@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BarChart3, Copy, ExternalLink, Link2, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "../../lib/api";
-import type { Form, FormStatus } from "../../lib/types";
+import { canCreateForms, canEditForm, type Form, type FormStatus } from "../../lib/types";
+import { useAdmin } from "./AdminLayout";
 
 export const STATUS_STYLE: Record<FormStatus, string> = {
   published: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
@@ -16,6 +17,8 @@ export default function FormsList() {
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const navigate = useNavigate();
+  const user = useAdmin();
+  const canCreate = canCreateForms(user);
 
   const load = () => api.get<Form[]>("/api/admin/forms").then(setForms).catch((e) => setError(e.message));
   useEffect(() => {
@@ -58,9 +61,11 @@ export default function FormsList() {
           <h1 className="font-display text-2xl font-bold text-white">Forms</h1>
           <p className="muted mt-1 text-sm">Published forms appear as cards on the public page. Drafts and closed forms are hidden.</p>
         </div>
-        <button className="a-btn-primary" onClick={() => create()} disabled={busy === "new"}>
-          {busy === "new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} New form
-        </button>
+        {canCreate && (
+          <button className="a-btn-primary" onClick={() => create()} disabled={busy === "new"}>
+            {busy === "new" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} New form
+          </button>
+        )}
       </div>
       {error && <p className="mt-4 text-sm text-rose-400">{error}</p>}
       {!forms ? (
@@ -70,14 +75,17 @@ export default function FormsList() {
       ) : forms.length === 0 ? (
         <div className="panel mt-6 p-10 text-center">
           <p className="text-slate-300">No forms yet.</p>
-          <button className="a-btn-primary mt-4" onClick={() => create()}>
-            <Plus className="h-4 w-4" /> Create your first form
-          </button>
+          {canCreate && (
+            <button className="a-btn-primary mt-4" onClick={() => create()}>
+              <Plus className="h-4 w-4" /> Create your first form
+            </button>
+          )}
         </div>
       ) : (
         <div className="mt-6 space-y-3">
           {forms.map((f) => {
             const questions = f.schema.sections.reduce((n, s) => n + s.fields.filter((x) => x.type !== "statement").length, 0);
+            const editable = canEditForm(user, f);
             return (
               <div key={f.id} className="panel flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
                 <div className="flex min-w-0 flex-1 items-center gap-4">
@@ -86,7 +94,7 @@ export default function FormsList() {
                   </div>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link to={`/admin/forms/${f.id}/edit`} className="truncate font-display font-semibold text-white hover:underline">
+                      <Link to={`/admin/forms/${f.id}/${editable ? "edit" : "responses"}`} className="truncate font-display font-semibold text-white hover:underline">
                         {f.title}
                       </Link>
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ring-1 ${STATUS_STYLE[f.status]}`}>{f.status}</span>
@@ -99,14 +107,18 @@ export default function FormsList() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <select className="a-input w-auto py-1.5" value={f.status} onChange={(e) => setStatus(f, e.target.value as FormStatus)} aria-label="Status">
-                    <option value="published">Published</option>
-                    <option value="draft">Draft</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                  <Link to={`/admin/forms/${f.id}/edit`} className="a-btn">
-                    <Pencil className="h-4 w-4" /> Edit
-                  </Link>
+                  {editable && (
+                    <>
+                      <select className="a-input w-auto py-1.5" value={f.status} onChange={(e) => setStatus(f, e.target.value as FormStatus)} aria-label="Status">
+                        <option value="published">Published</option>
+                        <option value="draft">Draft</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                      <Link to={`/admin/forms/${f.id}/edit`} className="a-btn">
+                        <Pencil className="h-4 w-4" /> Edit
+                      </Link>
+                    </>
+                  )}
                   <Link to={`/admin/forms/${f.id}/responses`} className="a-btn">
                     <BarChart3 className="h-4 w-4" /> Responses
                   </Link>
@@ -116,12 +128,16 @@ export default function FormsList() {
                   <button className="a-btn" onClick={() => copyLink(f)} title="Copy public link">
                     <Link2 className="h-4 w-4" /> {copied === f.id ? "Copied" : ""}
                   </button>
-                  <button className="a-btn" onClick={() => create(f.id)} title="Duplicate" disabled={busy === f.id}>
-                    {busy === f.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
-                  </button>
-                  <button className="a-btn-danger" onClick={() => remove(f)} title="Delete">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {canCreate && (
+                    <button className="a-btn" onClick={() => create(f.id)} title="Duplicate" disabled={busy === f.id}>
+                      {busy === f.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  )}
+                  {user.role === "admin" && (
+                    <button className="a-btn-danger" onClick={() => remove(f)} title="Delete">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             );

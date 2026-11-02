@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight, Download, FileDown, Loader2, Pencil, Trash2 } from "lucide-react";
 import { api } from "../../lib/api";
-import type { Field, Form, ResponseRow, UploadedFile } from "../../lib/types";
+import { canEditForm, type Field, type Form, type ResponseRow, type UploadedFile } from "../../lib/types";
+import { useAdmin } from "./AdminLayout";
 import { allFields, answersFor, avg, choiceRows, fmtNum, matrixRows, scaleDistribution } from "../../lib/analytics";
 import { Bars, Card, Columns, Empty } from "../../components/admin/Widgets";
 import { typeMeta } from "../../lib/fieldTypes";
 
 export default function FormResponses() {
   const { id = "" } = useParams();
+  const user = useAdmin();
   const [form, setForm] = useState<Form | null>(null);
   const [responses, setResponses] = useState<ResponseRow[] | null>(null);
   const [tab, setTab] = useState<"summary" | "individual">("summary");
@@ -62,13 +64,15 @@ export default function FormResponses() {
           <h1 className="truncate font-display text-xl font-bold text-white">{form.title}</h1>
           <p className="muted text-sm">{responses.length} responses</p>
         </div>
-        <Link to={`/admin/forms/${form.id}/edit`} className="a-btn">
-          <Pencil className="h-4 w-4" /> Edit form
-        </Link>
+        {canEditForm(user, form) && (
+          <Link to={`/admin/forms/${form.id}/edit`} className="a-btn">
+            <Pencil className="h-4 w-4" /> Edit form
+          </Link>
+        )}
         <a href={`/api/admin/forms/${form.id}/export.csv`} className="a-btn">
           <FileDown className="h-4 w-4" /> Export CSV
         </a>
-        {responses.length > 0 && (
+        {user.role === "admin" && responses.length > 0 && (
           <button className="a-btn-danger" onClick={removeAll}>
             <Trash2 className="h-4 w-4" /> Delete all
           </button>
@@ -115,9 +119,11 @@ export default function FormResponses() {
               <ChevronRight className="h-4 w-4" />
             </button>
             <span className="muted ml-2 text-sm">Submitted {new Date(current.created_at).toLocaleString()}</span>
-            <button className="a-btn-danger ml-auto" onClick={() => removeOne(current)}>
-              <Trash2 className="h-4 w-4" /> Delete response
-            </button>
+            {user.role === "admin" && (
+              <button className="a-btn-danger ml-auto" onClick={() => removeOne(current)}>
+                <Trash2 className="h-4 w-4" /> Delete response
+              </button>
+            )}
           </div>
           <div className="panel mt-4 divide-y divide-[var(--line)]">
             {fields.map((f) => (

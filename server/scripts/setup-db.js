@@ -37,6 +37,13 @@ create table if not exists ${SCHEMA}.responses (
   answers jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+-- Roles: admin (everything), academic (view responses, create forms and edit their own),
+-- management (view responses only). Accounts from before roles existed stay admins.
+alter table ${SCHEMA}.admins add column if not exists role text not null default 'admin'
+  check (role in ('admin', 'academic', 'management'));
+alter table ${SCHEMA}.admins alter column role set default 'management';
+alter table ${SCHEMA}.forms add column if not exists created_by uuid references ${SCHEMA}.admins(id) on delete set null;
+
 create index if not exists responses_form_created_idx on ${SCHEMA}.responses (form_id, created_at desc);
 
 -- Uploaded files (answers to file-upload questions and form cover images) are stored in the
@@ -128,7 +135,7 @@ async function main() {
     if (email && password) {
       const hash = await bcrypt.hash(password, 10);
       const r = await client.query(
-        `insert into ${SCHEMA}.admins (email, name, password_hash) values ($1, 'Administrator', $2) on conflict (email) do nothing`,
+        `insert into ${SCHEMA}.admins (email, name, password_hash, role) values ($1, 'Administrator', $2, 'admin') on conflict (email) do nothing`,
         [email.toLowerCase(), hash],
       );
       console.log(r.rowCount ? `Admin ${email} created` : `Admin ${email} already exists`);

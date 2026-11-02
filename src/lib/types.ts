@@ -75,6 +75,7 @@ export interface Form {
   settings: FormSettings;
   schema: FormSchema;
   sort_order?: number;
+  created_by?: string | null;
   created_at?: string;
   updated_at?: string;
   response_count?: number;
@@ -107,5 +108,24 @@ export interface UploadedFile {
   name: string;
   size: number;
 }
+
+export type Role = "admin" | "academic" | "management";
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+}
+
+export const ROLE_INFO: Record<Role, { label: string; help: string }> = {
+  admin: { label: "Admin", help: "Everything, including users and deleting forms or responses" },
+  academic: { label: "Academic", help: "View responses, create forms and edit their own forms" },
+  management: { label: "Management", help: "View responses only" },
+};
+
+export const canCreateForms = (u: User) => u.role !== "management";
+export const canEditForm = (u: User, f: Pick<Form, "created_by">) =>
+  u.role === "admin" || (u.role === "academic" && f.created_by === u.id);
 
 export const OTHER_PREFIX = "Other: ";

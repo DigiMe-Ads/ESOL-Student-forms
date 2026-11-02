@@ -2,26 +2,21 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { BarChart3, ExternalLink, FileText, Loader2, LogOut, Settings as Cog } from "lucide-react";
 import { api } from "../../lib/api";
+import { ROLE_INFO, type User } from "../../lib/types";
 import { Logo } from "../../components/Brand";
 
-interface Admin {
-  id: string;
-  email: string;
-  name: string;
-}
-
-const AdminCtx = createContext<Admin | null>(null);
+const AdminCtx = createContext<User | null>(null);
 export const useAdmin = () => useContext(AdminCtx)!;
 
 export default function AdminLayout() {
-  const [admin, setAdmin] = useState<Admin | null>(null);
+  const [admin, setAdmin] = useState<User | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     document.title = "Admin · ESOL Premier Campus";
     api
-      .get<Admin>("/api/admin/me")
+      .get<User>("/api/admin/me")
       .then(setAdmin)
       .catch(() => navigate(`/admin/login?next=${encodeURIComponent(location.pathname)}`, { replace: true }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,7 +62,9 @@ export default function AdminLayout() {
             <a href="/" target="_blank" rel="noreferrer" className="hidden items-center gap-1 text-sm text-slate-400 hover:text-white md:inline-flex">
               Public site <ExternalLink className="h-3.5 w-3.5" />
             </a>
-            <span className="hidden text-sm text-slate-500 lg:inline">{admin.email}</span>
+            <span className="hidden text-sm text-slate-500 lg:inline">
+              {admin.email} · {ROLE_INFO[admin.role].label}
+            </span>
             <button onClick={logout} className="a-btn" title="Sign out">
               <LogOut className="h-4 w-4" />
             </button>
